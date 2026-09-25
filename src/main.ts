@@ -1,48 +1,28 @@
 import "reflect-metadata";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { NestExpressApplication } from "@nestjs/platform-express";
-import type { Request, Response } from "express";
 import { AppModule } from "./app.module";
 
-let appPromise: Promise<NestExpressApplication> | undefined;
+export async function bootstrap(): Promise<NestExpressApplication> {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-function createApp(): Promise<NestExpressApplication> {
-  if (!appPromise) {
-    appPromise = NestFactory.create<NestExpressApplication>(AppModule).then(async (app) => {
-      const publicPath = join(__dirname, "..", "public");
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    transform: true,
+    forbidNonWhitelisted: true,
+  }));
 
-      app.useStaticAssets(publicPath, { index: "index.html" });
-      app.useGlobalPipes(new ValidationPipe({
-        whitelist: true,
-        transform: true,
-        forbidNonWhitelisted: true,
-      }));
-      await app.init();
-      return app;
-    });
+  const publicPath = join(process.cwd(), "public");
+  if (existsSync(publicPath)) {
+    app.useStaticAssets(publicPath, { index: "index.html" });
   }
 
-  return appPromise;
+  await app.listen(process.env.PORT ?? 3000, "0.0.0.0");
+
+  return app;
 }
 
-async function bootstrap(): Promise<void> {
-  const app = await createApp();
-  app.enableShutdownHooks();
-
-  const port = Number(process.env.PORT ?? 3000);
-  await app.listen(port, "0.0.0.0");
-}
-
-const handler = async (request: Request, response: Response): Promise<void> => {
-  const app = await createApp();
-  const express = app.getHttpAdapter().getInstance();
-  express(request, response);
-};
-
-if (process.env.VERCEL !== "1" && !process.env.VERCEL_URL) {
-  void bootstrap();
-}
-
-export = handler;
+export default bootstrap();
