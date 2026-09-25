@@ -7,6 +7,10 @@ import { NestExpressApplication } from "@nestjs/platform-express";
 import type { Request, Response } from "express";
 import { AppModule } from "./app.module";
 
+const isServerless = Boolean(
+  process.env.VERCEL || process.env.VERCEL_URL || process.env.AWS_LAMBDA_FUNCTION_NAME,
+);
+
 let appPromise: Promise<NestExpressApplication> | undefined;
 
 function createApp(): Promise<NestExpressApplication> {
@@ -24,10 +28,11 @@ function createApp(): Promise<NestExpressApplication> {
         }));
 
         const publicPath = join(process.cwd(), "public");
-        console.log(`[boot] public dir resolved: ${publicPath} exists=${existsSync(publicPath)}`);
-
         if (existsSync(publicPath)) {
           app.useStaticAssets(publicPath, { index: "index.html" });
+          console.log(`[boot] serving static assets from ${publicPath}`);
+        } else {
+          console.log("[boot] no public dir in bundle, static assets left to the platform");
         }
 
         await app.init();
@@ -71,9 +76,11 @@ export const handler = async (request: Request, response: Response): Promise<voi
   }
 };
 
-void bootstrap().catch((error) => {
-  console.error("[boot] bootstrap failed:", error);
-  process.exit(1);
-});
+if (!isServerless) {
+  void bootstrap().catch((error) => {
+    console.error("[boot] bootstrap failed:", error);
+    process.exitCode = 1;
+  });
+}
 
 export default handler;
