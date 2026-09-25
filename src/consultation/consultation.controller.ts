@@ -11,6 +11,13 @@ export class ConsultationController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@Body() body: CreateConsultationDto) {
-    return this.consultationService.create(body);
+    console.log("API request received");
+
+    try {
+      return this.consultationService.create(body);
+    } catch (error) {
+      console.error("API error:", error);
+      throw error;
+    }
   }
 }
